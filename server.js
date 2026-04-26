@@ -4,7 +4,6 @@ try { require("dotenv").config(); } catch { /* dotenv not installed in prod */ }
 const crypto  = require("crypto");
 const express = require("express");
 const path    = require("path");
-const nodeFetch = require("node-fetch");
 const { HttpProxyAgent } = require("http-proxy-agent");
 
 const app  = express();
@@ -126,7 +125,7 @@ async function apiPost(url, authHeader, body = "") {
       body,
     };
     if (proxyAgent) opts.agent = proxyAgent;
-    const res = await nodeFetch(url, opts);
+    const res = await fetch(url, opts);
     return { status: res.status, text: await res.text() };
   } finally {
     clearTimeout(tid);
