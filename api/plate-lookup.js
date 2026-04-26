@@ -1,5 +1,6 @@
-const crypto = require("crypto");
-const { ProxyAgent } = require("undici");
+const crypto    = require("crypto");
+const nodeFetch = require("node-fetch");
+const { HttpProxyAgent } = require("http-proxy-agent");
 
 /* ── Credentials come ONLY from environment variables ── */
 const LOGIN_KEY     = process.env.LOGIN_KEY;
@@ -13,12 +14,11 @@ const PROXY_PORT = process.env.PROXY_PORT || "9000";
 const PROXY_USER = process.env.PROXY_USER;
 const PROXY_PASS = process.env.PROXY_PASS;
 
-let proxyDispatcher = null;
+let proxyAgent = null;
 if (PROXY_HOST && PROXY_USER && PROXY_PASS) {
-  proxyDispatcher = new ProxyAgent({
-    uri:   `http://${PROXY_HOST}:${PROXY_PORT}`,
-    token: `Basic ${Buffer.from(`${PROXY_USER}:${PROXY_PASS}`).toString("base64")}`,
-  });
+  proxyAgent = new HttpProxyAgent(
+    `http://${PROXY_USER}:${encodeURIComponent(PROXY_PASS)}@${PROXY_HOST}:${PROXY_PORT}`
+  );
   console.log(`Proxy enabled: ${PROXY_HOST}:${PROXY_PORT}`);
 } else {
   console.warn("No proxy configured — upstream API may be unreachable outside PH.");
@@ -87,8 +87,8 @@ async function apiPost(url, authHeader, body = "") {
       },
       body,
     };
-    if (proxyDispatcher) opts.dispatcher = proxyDispatcher;
-    const res = await fetch(url, opts);
+    if (proxyAgent) opts.agent = proxyAgent;
+    const res = await nodeFetch(url, opts);
     return { status: res.status, text: await res.text() };
   } finally {
     clearTimeout(tid);
