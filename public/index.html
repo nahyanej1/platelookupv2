@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PlateFind — Vehicle Plate Lookup</title>
+    <meta name="description" content="Look up Philippine registered 4-wheel vehicle owner information by plate number." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+      :root {
+        --bg:           #04091a;
+        --surface:      rgba(255,255,255,0.04);
+        --border:       rgba(255,255,255,0.08);
+        --border-focus: rgba(79,172,254,0.45);
+        --text:         #ddeeff;
+        --muted:        #6a8fb8;
+        --dim:          #2d4a6a;
+        --accent:       #4facfe;
+        --gradient:     linear-gradient(135deg, #4facfe 0%, #00d4ff 100%);
+        --success:      #38ef7d;
+        --error:        #ff6b8a;
+        --warn:         #ffd166;
+      }
+
+      html { scroll-behavior: smooth; }
+
+      body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      /* ── Background ────────────────────────── */
+      .bg-aurora {
+        position: fixed; inset: 0; z-index: -2; pointer-events: none;
+        background:
+          radial-gradient(ellipse 90% 55% at 50% -5%,  rgba(79,172,254,0.14) 0%, transparent 65%),
+          radial-gradient(ellipse 55% 40% at 92% 88%,  rgba(0,212,255,0.07)  0%, transparent 55%),
+          radial-gradient(ellipse 50% 60% at -8% 70%,  rgba(99,102,241,0.08) 0%, transparent 55%),
+          #04091a;
+      }
+      .bg-grid {
+        position: fixed; inset: 0; z-index: -1; pointer-events: none;
+        background-image:
+          linear-gradient(rgba(79,172,254,0.04) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(79,172,254,0.04) 1px, transparent 1px);
+        background-size: 48px 48px;
+      }
+
+      /* ── Modal ─────────────────────────────── */
+      .modal-backdrop {
+        position: fixed; inset: 0; z-index: 200;
+        background: rgba(4,9,26,0.82);
+        backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+        display: flex; align-items: center; justify-content: center; padding: 20px;
+        animation: fadeIn 0.2s ease;
+      }
+      .modal-backdrop.hidden { display: none; }
+
+      .modal-box {
+        background: linear-gradient(160deg, rgba(12,22,54,0.98) 0%, rgba(6,12,32,0.99) 100%);
+        border: 1px solid rgba(79,172,254,0.18); border-radius: 22px;
+        padding: 36px 32px 32px; max-width: 400px; width: 100%; text-align: center;
+        box-shadow: 0 30px 70px rgba(0,0,0,0.65), 0 0 50px rgba(79,172,254,0.04);
+        animation: scaleUp 0.3s cubic-bezier(0.34,1.56,0.64,1);
+      }
+      .modal-icon-wrap {
+        width: 58px; height: 58px; margin: 0 auto 20px;
+        background: rgba(255,209,102,0.1); border: 1px solid rgba(255,209,102,0.22);
+        border-radius: 16px; display: flex; align-items: center; justify-content: center;
+        color: var(--warn);
+      }
+      .modal-box h2 { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 10px; }
+      .modal-box p  { font-size: 0.875rem; color: var(--muted); line-height: 1.65; margin-bottom: 6px; }
+      .modal-box p strong { color: var(--text); }
+      .modal-limit-badge {
+        display: flex; align-items: center; justify-content: center; gap: 10px;
+        margin: 16px 0; padding: 12px 18px;
+        background: rgba(79,172,254,0.07); border: 1px solid rgba(79,172,254,0.15);
+        border-radius: 12px;
+      }
+      .modal-limit-badge .num {
+        font-size: 2.4rem; font-weight: 800; line-height: 1;
+        background: var(--gradient);
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      }
+      .modal-limit-badge .lbl { font-size: 0.8rem; color: var(--muted); line-height: 1.4; text-align: left; }
+      .modal-cta {
+        margin-top: 22px; width: 100%; padding: 13px 20px;
+        background: var(--gradient); color: #fff; font-family: inherit;
+        font-size: 0.9rem; font-weight: 600; border: none; border-radius: 12px;
+        cursor: pointer; letter-spacing: 0.01em;
+        transition: opacity 0.2s, transform 0.15s;
+      }
+      .modal-cta:hover  { opacity: 0.88; transform: translateY(-1px); }
+      .modal-cta:active { transform: scale(0.99); }
+
+      /* ── Page layout ───────────────────────── */
+      .page { max-width: 580px; margin: 0 auto; padding: 44px 20px 80px; }
+
+      /* ── Header ────────────────────────────── */
+      .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 50px; }
+      .logo { display: flex; align-items: center; gap: 10px; }
+      .logo-mark {
+        width: 36px; height: 36px; background: var(--gradient); border-radius: 10px;
+        display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+      }
+      .logo-name { font-size: 1.05rem; font-weight: 700; letter-spacing: -0.01em; }
+      .logo-name em { font-style: normal; color: var(--accent); }
+      .header-chip {
+        font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.09em;
+        padding: 5px 11px; background: rgba(79,172,254,0.08); border: 1px solid rgba(79,172,254,0.2);
+        border-radius: 20px; color: var(--accent);
+      }
+
+      /* ── Hero ──────────────────────────────── */
+      .hero { text-align: center; margin-bottom: 38px; }
+      .hero h1 {
+        font-size: clamp(1.9rem, 5.5vw, 2.7rem); font-weight: 800;
+        letter-spacing: -0.03em; line-height: 1.12; margin-bottom: 14px;
+      }
+      .hero h1 .grad {
+        background: var(--gradient);
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      }
+      .hero p { font-size: 0.92rem; color: var(--muted); line-height: 1.65; max-width: 380px; margin: 0 auto; }
+
+      /* ── Search card ───────────────────────── */
+      .search-card {
+        background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
+        padding: 18px; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+        margin-bottom: 14px;
+      }
+      .input-group { position: relative; margin-bottom: 12px; }
+      .input-icon {
+        position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+        color: var(--dim); pointer-events: none; transition: color 0.2s;
+      }
+      .input-group:focus-within .input-icon { color: var(--accent); }
+      .plate-input {
+        width: 100%; padding: 13px 14px 13px 44px;
+        background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 12px;
+        color: var(--text); font-family: inherit; font-size: 1rem; font-weight: 500;
+        letter-spacing: 0.06em; outline: none; caret-color: var(--accent);
+        transition: border-color 0.2s, box-shadow 0.2s;
+      }
+      .plate-input::placeholder { color: var(--dim); font-weight: 400; letter-spacing: 0.02em; }
+      .plate-input:focus { border-color: var(--border-focus); box-shadow: 0 0 0 3px rgba(79,172,254,0.1); }
+      .search-btn {
+        width: 100%; padding: 13px 20px; background: var(--gradient); color: #fff;
+        font-family: inherit; font-size: 0.92rem; font-weight: 600; border: none; border-radius: 12px;
+        cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+        position: relative; overflow: hidden; letter-spacing: 0.01em;
+        transition: opacity 0.2s, transform 0.15s;
+      }
+      .search-btn::after { content: ''; position: absolute; inset: 0; background: rgba(255,255,255,0); transition: background 0.2s; }
+      .search-btn:hover::after { background: rgba(255,255,255,0.08); }
+      .search-btn:active { transform: scale(0.99); }
+      .search-btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+      .search-btn:disabled::after { display: none; }
+
+      /* ── Spinner ───────────────────────────── */
+      .spinner {
+        width: 17px; height: 17px; border: 2.5px solid rgba(255,255,255,0.28);
+        border-top-color: #fff; border-radius: 50%;
+        animation: spin 0.65s linear infinite; flex-shrink: 0;
+      }
+
+      /* ── Status bar ────────────────────────── */
+      .status-bar {
+        display: flex; align-items: flex-start; gap: 8px;
+        padding: 11px 14px; border-radius: 10px;
+        font-size: 0.85rem; font-weight: 500; line-height: 1.45;
+        margin-bottom: 14px; animation: slideUp 0.2s ease;
+      }
+      .status-bar.info    { background: rgba(79,172,254,0.07);  color: var(--muted);   }
+      .status-bar.success { background: rgba(56,239,125,0.07);  color: var(--success); }
+      .status-bar.error   { background: rgba(255,107,138,0.07); color: var(--error);   }
+      .status-bar svg     { flex-shrink: 0; margin-top: 1px; }
+
+      /* ── Results card ──────────────────────── */
+      .results-card {
+        background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
+        overflow: hidden; margin-bottom: 14px;
+        animation: slideUp 0.38s cubic-bezier(0.16,1,0.3,1);
+      }
+      .results-header {
+        padding: 14px 18px; border-bottom: 1px solid var(--border);
+        display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      }
+      .plate-badge {
+        font-size: 0.95rem; font-weight: 800; letter-spacing: 0.12em;
+        padding: 5px 12px; background: rgba(79,172,254,0.1);
+        border: 1px solid rgba(79,172,254,0.25); border-radius: 8px; color: var(--accent);
+      }
+      .results-eyebrow {
+        font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
+        letter-spacing: 0.09em; color: var(--dim);
+      }
+      .results-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--border); }
+      .result-field { padding: 16px 18px; background: var(--bg); transition: background 0.18s; }
+      .result-field:hover { background: rgba(79,172,254,0.03); }
+      .field-label {
+        display: flex; align-items: center; gap: 6px;
+        font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
+        letter-spacing: 0.08em; color: var(--dim); margin-bottom: 7px;
+      }
+      .field-value { font-size: 0.93rem; font-weight: 500; color: var(--text); word-break: break-word; }
+      .field-value.na { color: var(--dim); font-style: italic; }
+
+      /* ── Footer ────────────────────────────── */
+      footer { margin-top: 50px; text-align: center; padding: 0 8px; }
+      .footer-author {
+        display: inline-flex; align-items: center; gap: 7px;
+        font-size: 0.78rem; color: var(--dim); margin-bottom: 8px;
+      }
+      .footer-author a { color: var(--accent); text-decoration: none; font-weight: 600; transition: opacity 0.2s; }
+      .footer-author a:hover { opacity: 0.75; }
+      .footer-note { font-size: 0.7rem; color: var(--dim); line-height: 1.6; }
+      .sep { margin: 0 5px; }
+
+      /* ── Utilities ─────────────────────────── */
+      .hidden { display: none !important; }
+
+      /* ── Animations ────────────────────────── */
+      @keyframes fadeIn  { from { opacity: 0; }               to { opacity: 1; }              }
+      @keyframes scaleUp { from { opacity: 0; transform: scale(0.88); } to { opacity: 1; transform: scale(1); } }
+      @keyframes slideUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+      @keyframes spin    { to   { transform: rotate(360deg); }              }
+
+      /* ── Responsive ────────────────────────── */
+      @media (max-width: 480px) {
+        .page         { padding: 30px 16px 60px; }
+        .results-grid { grid-template-columns: 1fr; }
+        .header-chip  { display: none; }
+        .hero h1      { font-size: 1.85rem; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bg-aurora" aria-hidden="true"></div>
+    <div class="bg-grid"   aria-hidden="true"></div>
+
+    <!-- Limitation Modal -->
+    <div id="modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div class="modal-box">
+        <div class="modal-icon-wrap" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+            <line x1="12" y1="9"  x2="12"    y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+        </div>
+        <h2 id="modal-title">Supported Vehicles</h2>
+        <p>This tool only works for <strong>4-wheel vehicles</strong> registered in the Philippines.</p>
+        <div class="modal-limit-badge">
+          <span style="font-size:2rem;" aria-hidden="true">🚫🏍️</span>
+          <span class="lbl">Motorcycles are <strong style="color:var(--error)">not</strong><br>supported by this database</span>
+        </div>
+        <p>Philippine-registered <strong>cars, vans, trucks, and SUVs</strong> only.</p>
+        <button class="modal-cta" id="modalClose">I Understand, Continue</button>
+      </div>
+    </div>
+
+    <!-- Main Page -->
+    <main class="page">
+
+      <header class="header">
+        <div class="logo">
+          <div class="logo-mark" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="1" y="3" width="22" height="18" rx="2" ry="2"/>
+              <line x1="7" y1="8"  x2="15" y2="8"/>
+              <line x1="7" y1="12" x2="17" y2="12"/>
+              <line x1="7" y1="16" x2="11" y2="16"/>
+            </svg>
+          </div>
+          <span class="logo-name">Plate<em>Find</em></span>
+        </div>
+        <span class="header-chip">PH Plates Only</span>
+      </header>
+
+      <section class="hero" aria-label="Tool description">
+        <h1>Vehicle Plate<br><span class="grad">Lookup Tool</span></h1>
+        <p>Enter a Philippine plate number to retrieve the registered owner's contact information. 4-wheel vehicles only.</p>
+      </section>
+
+      <div class="search-card">
+        <form id="lookupForm" autocomplete="off" novalidate>
+          <div class="input-group">
+            <svg class="input-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="8"/>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input
+              id="plateInput"
+              type="text"
+              class="plate-input"
+              placeholder="Enter plate number (e.g. ABC1234)"
+              maxlength="12"
+              spellcheck="false"
+              autocorrect="off"
+              autocapitalize="characters"
+              aria-label="Plate number"
+            />
+          </div>
+          <button id="searchBtn" class="search-btn" type="submit">
+            <svg id="btnIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <span id="btnText">Search Plate</span>
+            <div id="btnSpinner" class="spinner hidden" aria-hidden="true"></div>
+          </button>
+        </form>
+      </div>
+
+      <div id="statusBar" role="status" aria-live="polite" class="hidden"></div>
+
+      <div id="resultsCard" class="results-card hidden" aria-label="Lookup results">
+        <div class="results-header">
+          <span id="resultPlate" class="plate-badge" aria-label="Plate number"></span>
+          <span class="results-eyebrow">Owner Info</span>
+        </div>
+        <div class="results-grid">
+          <div class="result-field">
+            <div class="field-label" aria-hidden="true">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
+              </svg>
+              First Name
+            </div>
+            <div id="fName" class="field-value">—</div>
+          </div>
+          <div class="result-field">
+            <div class="field-label" aria-hidden="true">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
+              </svg>
+              Last Name
+            </div>
+            <div id="lName" class="field-value">—</div>
+          </div>
+          <div class="result-field">
+            <div class="field-label" aria-hidden="true">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                <polyline points="22,6 12,13 2,6"/>
+              </svg>
+              Email
+            </div>
+            <div id="emailVal" class="field-value">—</div>
+          </div>
+          <div class="result-field">
+            <div class="field-label" aria-hidden="true">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63 2 2 0 012-2.18h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9a16 16 0 006.91 6.91l.72-.72a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/>
+              </svg>
+              Mobile Phone
+            </div>
+            <div id="phoneVal" class="field-value">—</div>
+          </div>
+        </div>
+      </div>
+
+      <footer>
+        <div class="footer-author">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.248-1.97 9.289c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L6.26 14.425l-2.952-.924c-.642-.204-.654-.642.136-.953l11.526-4.443c.537-.194 1.006.131.592.143z"/>
+          </svg>
+          Developed by&nbsp;<a href="https://t.me/manansala00" target="_blank" rel="noopener noreferrer">@manansala00</a>
+        </div>
+        <p class="footer-note">
+          Philippine-based &bull; 4-wheel vehicles only &bull; Authorized use only
+        </p>
+      </footer>
+
+    </main>
+
+    <script>
+      /* Modal */
+      document.getElementById('modalClose').addEventListener('click', () => {
+        document.getElementById('modal').classList.add('hidden');
+      });
+
+      /* DOM refs */
+      const form        = document.getElementById('lookupForm');
+      const input       = document.getElementById('plateInput');
+      const searchBtn   = document.getElementById('searchBtn');
+      const btnText     = document.getElementById('btnText');
+      const btnIcon     = document.getElementById('btnIcon');
+      const spinner     = document.getElementById('btnSpinner');
+      const statusBar   = document.getElementById('statusBar');
+      const resultsCard = document.getElementById('resultsCard');
+
+      const PLATE_RE = /^[A-Z0-9-]{4,12}$/;
+
+      const STATUS_ICONS = {
+        success: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>',
+        error:   '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
+        info:    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
+      };
+
+      function setLoading(on) {
+        searchBtn.disabled = on;
+        btnText.classList.toggle('hidden', on);
+        btnIcon.classList.toggle('hidden', on);
+        spinner.classList.toggle('hidden', !on);
+      }
+
+      function showStatus(msg, type) {
+        statusBar.className = 'status-bar ' + type;
+        statusBar.innerHTML = '';
+        /* Icon is from our own static code, not user input */
+        const iconEl = document.createElement('span');
+        iconEl.innerHTML = STATUS_ICONS[type] || '';
+        /* Message uses textContent to prevent XSS */
+        const msgEl = document.createElement('span');
+        msgEl.textContent = msg;
+        statusBar.appendChild(iconEl);
+        statusBar.appendChild(msgEl);
+        statusBar.classList.remove('hidden');
+        statusBar.style.animation = 'none';
+        void statusBar.offsetWidth;
+        statusBar.style.animation = '';
+      }
+
+      function renderResults(plate, profile) {
+        document.getElementById('resultPlate').textContent = plate;
+        [
+          ['fName',    profile.firstName],
+          ['lName',    profile.lastName],
+          ['emailVal', profile.email],
+          ['phoneVal', profile.mobilePhone],
+        ].forEach(([id, val]) => {
+          const el    = document.getElementById(id);
+          const empty = !val || val === 'N/A';
+          el.textContent = empty ? 'N/A' : val;
+          el.className   = 'field-value' + (empty ? ' na' : '');
+        });
+        resultsCard.classList.remove('hidden');
+        resultsCard.style.animation = 'none';
+        void resultsCard.offsetWidth;
+        resultsCard.style.animation = '';
+      }
+
+      /* Force uppercase and strip invalid characters on input */
+      input.addEventListener('input', () => {
+        const pos   = input.selectionStart;
+        input.value = input.value.toUpperCase().replace(/[^A-Z0-9-]/g, '');
+        input.setSelectionRange(pos, pos);
+      });
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const plate = input.value.trim();
+
+        if (!PLATE_RE.test(plate)) {
+          showStatus('Invalid plate format. Use 4–12 letters, numbers, or dashes.', 'error');
+          return;
+        }
+
+        setLoading(true);
+        statusBar.classList.add('hidden');
+        resultsCard.classList.add('hidden');
+
+        try {
+          const res  = await fetch('/api/plate-lookup', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ plate }),
+          });
+          const data = await res.json();
+
+          if (!res.ok) throw new Error(data.error || 'Request failed.');
+
+          showStatus('Record found for plate ' + data.plate, 'success');
+          renderResults(data.plate, data.profile || {});
+        } catch (err) {
+          showStatus(err.message || 'An unexpected error occurred.', 'error');
+        } finally {
+          setLoading(false);
+        }
+      });
+    </script>
+  </body>
+</html>
